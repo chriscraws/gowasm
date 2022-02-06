@@ -144,8 +144,7 @@ var tcs = []struct {
 			hello := m.GlobalF32(38.89)
 			m.Export("hello", hello)
 			fn := m.Function()
-			fn.AddInstructions(
-				wasm.AssignF32(hello, wasm.ConstF32(10)))
+			fn.Body(wasm.AssignF32(hello, wasm.ConstF32(10)))
 			m.Export("set_ten", fn)
 			return m
 		},
@@ -174,7 +173,7 @@ var tcs = []struct {
 			m.Export("hello", hello)
 			fn := m.Function()
 			loc := fn.LocalF32()
-			fn.AddInstructions(
+			fn.Body(
 				wasm.AssignF32(loc, wasm.ConstF32(15)),
 				wasm.AssignF32(hello, loc))
 			m.Export("set_fifteen", fn)
@@ -205,7 +204,7 @@ var tcs = []struct {
 			m.Export("out", out)
 			for i, tc := range opf32Tests {
 				f := m.Function()
-				f.AddInstructions(wasm.AssignF32(out, tc.assign))
+				f.Body(wasm.AssignF32(out, tc.assign))
 				m.Export(fmt.Sprintf("f%d", i), f)
 			}
 			return m
