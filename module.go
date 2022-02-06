@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"sort"
+	"strings"
 )
 
 // Module is a repesentation of a WASM module.
@@ -23,12 +24,22 @@ type Module struct {
 
 	// globals
 	globals []*varF32
+
+	// imports
+	imports map[string]*varF32
 }
 
+// An Exportable type can be exported from the module.
+// Exportables must be exported with the Module.Export
+// method, and can be created with the following functions:
+//
+// Module.GlobalF32
+// Module.Function
 type Exportable interface {
 	isExportable()
 }
 
+// GlobalF32 creates a global, mutable F32 object.
 func (m *Module) GlobalF32(init float32) GlobalF32 {
 	g := new(varF32)
 	g.idx = uint32(len(m.globals))
@@ -37,6 +48,7 @@ func (m *Module) GlobalF32(init float32) GlobalF32 {
 	return g
 }
 
+// Function instantiates a function.
 func (m *Module) Function() Function {
 	f := new(function)
 	f.idx = uint32(len(m.functions))
@@ -44,11 +56,36 @@ func (m *Module) Function() Function {
 	return f
 }
 
+// Export exports v as name. If a previous Exportable has already
+// been exported as name, it will be replaced.
 func (m *Module) Export(name string, v Exportable) {
 	if m.exportNames == nil {
 		m.exportNames = make(map[string]Exportable)
 	}
 	m.exportNames[name] = v
+}
+
+// ImportF32 imports a global F32 value.
+// If symbol has already been imported, ImportF32 panics.
+// symbol must be in the format "module.name"
+func (m *Module) ImportF32(symbol string) MutableF32 {
+	sp := strings.Split(symbol, ".")
+	if len(sp) != 2 {
+		panic(fmt.Errorf("malformed symbol %q", symbol))
+	}
+	if m.imports == nil {
+		m.imports = make(map[string]*varF32)
+	}
+	if _, ok := m.imports[symbol]; ok {
+		panic(fmt.Errorf("duplicate import %q", symbol))
+	}
+	for _, v := range m.globals {
+		v.idx++
+	}
+	out := new(varF32)
+	out.idx = uint32(len(m.imports))
+	m.imports[symbol] = out
+	return out
 }
 
 // Compile compiles the module into binary WASM format.
@@ -74,6 +111,11 @@ func (m *Module) Compile() ([]byte, error) {
 		return nil, fmt.Errorf("failed to write type section: %s", err)
 	}
 
+	// (2) import section
+	if err := m.writeImportSection(); err != nil {
+		return nil, fmt.Errorf("failed to write import section: %s", err)
+	}
+
 	// (3) function section
 	if err := m.writeFunctionSection(); err != nil {
 		return nil, fmt.Errorf("failed to write function section: %s", err)
@@ -94,7 +136,9 @@ func (m *Module) Compile() ([]byte, error) {
 		return nil, fmt.Errorf("failed to write code section: %s", err)
 	}
 
-	return m.buf.Bytes(), nil
+	out := m.buf.Bytes()
+	m.buf = bytes.Buffer{}
+	return out, nil
 }
 
 func (m *Module) addFunction(f *function) {
@@ -161,6 +205,40 @@ func (m *Module) writeTypeSection() error {
 	}
 
 	m.buf.WriteByte(0x01)
+	writeu32(uint32(buf.Len()), &m.buf)
+	m.buf.Write(buf.Bytes())
+	return nil
+}
+
+func (m *Module) writeImportSection() error {
+	if len(m.imports) == 0 {
+		return nil
+	}
+	buf := new(bytes.Buffer)
+	// vec(import)
+	writeu32(uint32(len(m.imports)), buf)
+	imports := make([][2]string, len(m.imports))
+	for k, m := range m.imports {
+		sp := strings.Split(k, ".")
+		imports[m.idx] = [2]string{sp[0], sp[1]}
+	}
+	for _, imp := range imports {
+		// module
+		writeu32(uint32(len(imp[0])), buf)
+		buf.WriteString(imp[0])
+		// name
+		writeu32(uint32(len(imp[1])), buf)
+		buf.WriteString(imp[1])
+		// importdesc
+		buf.WriteByte(0x03) // globaltype
+		globaltype{
+			mutable: true,
+			valuetype: valuetype{
+				numtype: f32,
+			},
+		}.encode(buf)
+	}
+	m.buf.WriteByte(2)
 	writeu32(uint32(buf.Len()), &m.buf)
 	m.buf.Write(buf.Bytes())
 	return nil

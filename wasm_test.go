@@ -105,26 +105,41 @@ var opf32Tests = []struct {
 	},
 }
 
+type buildContext struct {
+	t     *testing.T
+	imp   *wasmer.ImportObject
+	store *wasmer.Store
+	data  *interface{}
+}
+
+type testContext struct {
+	t    *testing.T
+	inst *wasmer.Instance
+	imp  *wasmer.ImportObject
+	data *interface{}
+}
+
 var tcs = []struct {
 	what  string
-	build func() *wasm.Module
-	test  func(t *testing.T, inst *wasmer.Instance)
+	build func(b buildContext) *wasm.Module
+	test  func(ctx testContext)
 }{
 	{
 		what: "an empty module",
-		build: func() *wasm.Module {
+		build: func(b buildContext) *wasm.Module {
 			return new(wasm.Module)
 		},
 	},
 	{
 		what: "an exported f32",
-		build: func() *wasm.Module {
+		build: func(b buildContext) *wasm.Module {
 			m := new(wasm.Module)
 			m.Export("hello", m.GlobalF32(38.89))
 			return m
 		},
-		test: func(t *testing.T, inst *wasmer.Instance) {
-			glob, err := inst.Exports.GetGlobal("hello")
+		test: func(ctx testContext) {
+			t := ctx.t
+			glob, err := ctx.inst.Exports.GetGlobal("hello")
 			if err != nil {
 				t.Error(err)
 			}
@@ -138,8 +153,41 @@ var tcs = []struct {
 		},
 	},
 	{
+		what: "imported f32",
+		build: func(b buildContext) *wasm.Module {
+			m := new(wasm.Module)
+			imp := m.ImportF32("root.x")
+			f := m.Function()
+			f.Body(wasm.AssignF32(imp, wasm.ConstF32(123)))
+			m.Export("main", f)
+			x := wasmer.NewGlobal(
+				b.store,
+				wasmer.NewGlobalType(
+					wasmer.NewValueType(wasmer.F32), wasmer.MUTABLE),
+				wasmer.NewF32(float32(5)),
+			)
+			*b.data = x
+			b.imp.Register("root", map[string]wasmer.IntoExtern{
+				"x": x,
+			})
+			return m
+		},
+		test: func(ctx testContext) {
+			t := ctx.t
+			fn, _ := ctx.inst.Exports.GetFunction("main")
+			err, _ := fn()
+			if err != nil {
+				t.Error(err)
+			}
+			v := (*ctx.data).(*wasmer.Global)
+			if vf, err := v.Get(); err != nil || vf.(float32) != 123 {
+				t.Errorf("expected %f, got %f", 123.0, vf.(float32))
+			}
+		},
+	},
+	{
 		what: "an exported function",
-		build: func() *wasm.Module {
+		build: func(b buildContext) *wasm.Module {
 			m := new(wasm.Module)
 			hello := m.GlobalF32(38.89)
 			m.Export("hello", hello)
@@ -148,9 +196,10 @@ var tcs = []struct {
 			m.Export("set_ten", fn)
 			return m
 		},
-		test: func(t *testing.T, inst *wasmer.Instance) {
-			glob, _ := inst.Exports.GetGlobal("hello")
-			fn, err := inst.Exports.GetFunction("set_ten")
+		test: func(ctx testContext) {
+			t := ctx.t
+			glob, _ := ctx.inst.Exports.GetGlobal("hello")
+			fn, err := ctx.inst.Exports.GetFunction("set_ten")
 			if err != nil {
 				t.Error(err)
 			}
@@ -167,7 +216,7 @@ var tcs = []struct {
 	},
 	{
 		what: "a function with locals",
-		build: func() *wasm.Module {
+		build: func(b buildContext) *wasm.Module {
 			m := new(wasm.Module)
 			hello := m.GlobalF32(38.89)
 			m.Export("hello", hello)
@@ -179,9 +228,10 @@ var tcs = []struct {
 			m.Export("set_fifteen", fn)
 			return m
 		},
-		test: func(t *testing.T, inst *wasmer.Instance) {
-			glob, _ := inst.Exports.GetGlobal("hello")
-			fn, err := inst.Exports.GetFunction("set_fifteen")
+		test: func(ctx testContext) {
+			t := ctx.t
+			glob, _ := ctx.inst.Exports.GetGlobal("hello")
+			fn, err := ctx.inst.Exports.GetFunction("set_fifteen")
 			if err != nil {
 				t.Error(err)
 			}
@@ -198,7 +248,7 @@ var tcs = []struct {
 	},
 	{
 		what: "f32 ops",
-		build: func() *wasm.Module {
+		build: func(b buildContext) *wasm.Module {
 			m := new(wasm.Module)
 			out := m.GlobalF32(0)
 			m.Export("out", out)
@@ -209,11 +259,12 @@ var tcs = []struct {
 			}
 			return m
 		},
-		test: func(t *testing.T, inst *wasmer.Instance) {
-			g, _ := inst.Exports.GetGlobal("out")
+		test: func(ctx testContext) {
+			t := ctx.t
+			g, _ := ctx.inst.Exports.GetGlobal("out")
 			for i, tc := range opf32Tests {
 				n := fmt.Sprintf("f%d", i)
-				f, _ := inst.Exports.GetFunction(n)
+				f, _ := ctx.inst.Exports.GetFunction(n)
 				_, err := f()
 				if err != nil {
 					t.Errorf("failed to run f32op %q: %s", tc.what, err)
@@ -231,13 +282,20 @@ var tcs = []struct {
 func TestWasm(t *testing.T) {
 	for _, tc := range tcs {
 		t.Run(tc.what, func(t *testing.T) {
-			mod := tc.build()
+			var data interface{}
+			engine := wasmer.NewEngine()
+			store := wasmer.NewStore(engine)
+			importObject := wasmer.NewImportObject()
+			mod := tc.build(buildContext{
+				t:     t,
+				imp:   importObject,
+				data:  &data,
+				store: store,
+			})
 			buf, err := mod.Compile()
 			if err != nil {
 				t.Error(err)
 			}
-			engine := wasmer.NewEngine()
-			store := wasmer.NewStore(engine)
 			err = wasmer.ValidateModule(store, buf)
 			if err != nil {
 				t.Error(err)
@@ -249,13 +307,17 @@ func TestWasm(t *testing.T) {
 			if module == nil {
 				return
 			}
-			importObject := wasmer.NewImportObject()
 			inst, err := wasmer.NewInstance(module, importObject)
 			if err != nil {
 				t.Error(err)
 			}
 			if tc.test != nil {
-				tc.test(t, inst)
+				tc.test(testContext{
+					t:    t,
+					inst: inst,
+					imp:  importObject,
+					data: &data,
+				})
 			}
 		})
 	}
