@@ -1,11 +1,109 @@
 package wasm_test
 
 import (
+	"fmt"
 	"testing"
 
 	wasm "github.com/chriscraws/gowasm"
 	"github.com/wasmerio/wasmer-go/wasmer"
 )
+
+var opf32Tests = []struct {
+	what   string
+	assign wasm.F32
+	expect float32
+}{
+	{
+		what:   "abs",
+		assign: wasm.AbsF32(wasm.ConstF32(-10)),
+		expect: 10,
+	},
+	{
+		what:   "neg",
+		assign: wasm.NegF32(wasm.ConstF32(10)),
+		expect: -10,
+	},
+	{
+		what:   "ceil",
+		assign: wasm.CeilF32(wasm.ConstF32(-0.2)),
+		expect: -0,
+	},
+	{
+		what:   "floor",
+		assign: wasm.FloorF32(wasm.ConstF32(-0.2)),
+		expect: -1,
+	},
+	{
+		what:   "trunc negative",
+		assign: wasm.TruncF32(wasm.ConstF32(-0.2)),
+		expect: -0,
+	},
+	{
+		what:   "trunc positive",
+		assign: wasm.TruncF32(wasm.ConstF32(0.2)),
+		expect: 0,
+	},
+	{
+		what:   "nearest 1",
+		assign: wasm.NearestF32(wasm.ConstF32(0.2)),
+		expect: 0,
+	},
+	{
+		what:   "nearest 2",
+		assign: wasm.NearestF32(wasm.ConstF32(0.6)),
+		expect: 1,
+	},
+	{
+		what:   "nearest 3",
+		assign: wasm.NearestF32(wasm.ConstF32(-23.2)),
+		expect: -23,
+	},
+	{
+		what:   "sqrt",
+		assign: wasm.SqrtF32(wasm.ConstF32(4)),
+		expect: 2,
+	},
+	{
+		what:   "add",
+		assign: wasm.AddF32(wasm.ConstF32(1), wasm.ConstF32(5)),
+		expect: 6,
+	},
+	{
+		what:   "sub",
+		assign: wasm.SubF32(wasm.ConstF32(1), wasm.ConstF32(5)),
+		expect: -4,
+	},
+	{
+		what:   "mul",
+		assign: wasm.MulF32(wasm.ConstF32(3), wasm.ConstF32(5)),
+		expect: 15,
+	},
+	{
+		what:   "div",
+		assign: wasm.DivF32(wasm.ConstF32(30), wasm.ConstF32(5)),
+		expect: 6,
+	},
+	{
+		what:   "min",
+		assign: wasm.MinF32(wasm.ConstF32(30), wasm.ConstF32(5)),
+		expect: 5,
+	},
+	{
+		what:   "max",
+		assign: wasm.MaxF32(wasm.ConstF32(30), wasm.ConstF32(5)),
+		expect: 30,
+	},
+	{
+		what:   "copysign",
+		assign: wasm.CopysignF32(wasm.ConstF32(30), wasm.ConstF32(5)),
+		expect: 30,
+	},
+	{
+		what:   "copysign 2",
+		assign: wasm.CopysignF32(wasm.ConstF32(30), wasm.ConstF32(-5)),
+		expect: -30,
+	},
+}
 
 var tcs = []struct {
 	what  string
@@ -96,6 +194,36 @@ var tcs = []struct {
 			vf, _ = glob.Get()
 			if err != nil || vf.(float32) != 15 {
 				t.Errorf("function did not set to fifteen")
+			}
+		},
+	},
+	{
+		what: "f32 ops",
+		build: func() *wasm.Module {
+			m := new(wasm.Module)
+			out := m.GlobalF32(0)
+			m.Export("out", out)
+			for i, tc := range opf32Tests {
+				f := m.Function()
+				f.AddInstructions(wasm.AssignF32(out, tc.assign))
+				m.Export(fmt.Sprintf("f%d", i), f)
+			}
+			return m
+		},
+		test: func(t *testing.T, inst *wasmer.Instance) {
+			g, _ := inst.Exports.GetGlobal("out")
+			for i, tc := range opf32Tests {
+				n := fmt.Sprintf("f%d", i)
+				f, _ := inst.Exports.GetFunction(n)
+				_, err := f()
+				if err != nil {
+					t.Errorf("failed to run f32op %q: %s", tc.what, err)
+				}
+				v, _ := g.Get()
+				vf := v.(float32)
+				if vf != tc.expect {
+					t.Errorf("%s: expected %f got %f", tc.what, tc.expect, vf)
+				}
 			}
 		},
 	},
