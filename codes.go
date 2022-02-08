@@ -79,9 +79,15 @@ const (
 	floorf32x4V128
 	truncf32x4V128
 	nearestf32x4V128
-	absf32x4V128
+)
+
+const (
+	absf32x4V128 vecOp = 224 + iota
 	negf32x4V128
-	sqrtf32x4V128
+)
+
+const (
+	sqrtf32x4V128 vecOp = 227 + iota
 	addf32x4V128
 	subf32x4V128
 	mulf32x4V128

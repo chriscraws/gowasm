@@ -116,81 +116,84 @@ var opvec4f32Tests = []struct {
 			wasm.ConstVec4F32{-10, -23, 14, 0}),
 		expect: [4]float32{10, 23, 14, 0},
 	},
-	// {
-	// 	what:   "neg",
-	// 	assign: wasm.NegVec4F32(wasm.ConstVec4F32(10)),
-	// 	expect: -10,
-	// },
-	// {
-	// 	what:   "ceil",
-	// 	assign: wasm.CeilVec4F32(wasm.ConstVec4F32(-0.2)),
-	// 	expect: -0,
-	// },
-	// {
-	// 	what:   "floor",
-	// 	assign: wasm.FloorVec4F32(wasm.ConstVec4F32(-0.2)),
-	// 	expect: -1,
-	// },
-	// {
-	// 	what:   "trunc negative",
-	// 	assign: wasm.TruncVec4F32(wasm.ConstVec4F32(-0.2)),
-	// 	expect: -0,
-	// },
-	// {
-	// 	what:   "trunc positive",
-	// 	assign: wasm.TruncVec4F32(wasm.ConstVec4F32(0.2)),
-	// 	expect: 0,
-	// },
-	// {
-	// 	what:   "nearest 1",
-	// 	assign: wasm.NearestVec4F32(wasm.ConstVec4F32(0.2)),
-	// 	expect: 0,
-	// },
-	// {
-	// 	what:   "nearest 2",
-	// 	assign: wasm.NearestVec4F32(wasm.ConstVec4F32(0.6)),
-	// 	expect: 1,
-	// },
-	// {
-	// 	what:   "nearest 3",
-	// 	assign: wasm.NearestVec4F32(wasm.ConstVec4F32(-23.2)),
-	// 	expect: -23,
-	// },
-	// {
-	// 	what:   "sqrt",
-	// 	assign: wasm.SqrtVec4F32(wasm.ConstVec4F32(4)),
-	// 	expect: 2,
-	// },
-	// {
-	// 	what:   "add",
-	// 	assign: wasm.AddVec4F32(wasm.ConstVec4F32(1), wasm.ConstVec4F32(5)),
-	// 	expect: 6,
-	// },
-	// {
-	// 	what:   "sub",
-	// 	assign: wasm.SubVec4F32(wasm.ConstVec4F32(1), wasm.ConstVec4F32(5)),
-	// 	expect: -4,
-	// },
-	// {
-	// 	what:   "mul",
-	// 	assign: wasm.MulVec4F32(wasm.ConstVec4F32(3), wasm.ConstVec4F32(5)),
-	// 	expect: 15,
-	// },
-	// {
-	// 	what:   "div",
-	// 	assign: wasm.DivVec4F32(wasm.ConstVec4F32(30), wasm.ConstVec4F32(5)),
-	// 	expect: 6,
-	// },
-	// {
-	// 	what:   "min",
-	// 	assign: wasm.MinVec4F32(wasm.ConstVec4F32(30), wasm.ConstVec4F32(5)),
-	// 	expect: 5,
-	// },
-	// {
-	// 	what:   "max",
-	// 	assign: wasm.MaxVec4F32(wasm.ConstVec4F32(30), wasm.ConstVec4F32(5)),
-	// 	expect: 30,
-	// },
+	{
+		what: "neg",
+		assign: wasm.NegVec4F32(
+			wasm.ConstVec4F32{-10, -23, 14, 0}),
+		expect: [4]float32{10, 23, -14, -0},
+	},
+	{
+		what: "ceil",
+		assign: wasm.CeilVec4F32(
+			wasm.ConstVec4F32{-0.2, -2, 0.3, 1}),
+		expect: [4]float32{-0, -2, 1, 1},
+	},
+	{
+		what: "floor",
+		assign: wasm.FloorVec4F32(
+			wasm.ConstVec4F32{-0.2, -2, 0.3, 1}),
+		expect: [4]float32{-1, -2, 0, 1},
+	},
+	{
+		what: "trunc",
+		assign: wasm.TruncVec4F32(
+			wasm.ConstVec4F32{-0.2, -2, 0.3, 1}),
+		expect: [4]float32{-0, -2, 0, 1},
+	},
+	{
+		what: "nearest",
+		assign: wasm.NearestVec4F32(
+			wasm.ConstVec4F32{-0.8, 2.5, 0.3, 1}),
+		expect: [4]float32{-1, 2, 0, 1},
+	},
+	{
+		what: "sqrt",
+		assign: wasm.SqrtVec4F32(
+			wasm.ConstVec4F32{4, 16, 9, 25}),
+		expect: [4]float32{2, 4, 3, 5},
+	},
+	{
+		what: "add",
+		assign: wasm.AddVec4F32(
+			wasm.ConstVec4F32{4, 16, 9, 25},
+			wasm.ConstVec4F32{4, 16, 9, 25}),
+		expect: [4]float32{8, 32, 18, 50},
+	},
+	{
+		what: "sub",
+		assign: wasm.SubVec4F32(
+			wasm.ConstVec4F32{4, 16, 9, 25},
+			wasm.ConstVec4F32{30, 2, -3, 0}),
+		expect: [4]float32{-26, 14, 12, 25},
+	},
+	{
+		what: "mul",
+		assign: wasm.MulVec4F32(
+			wasm.ConstVec4F32{4, 16, 9, 25},
+			wasm.ConstVec4F32{30, 2, -3, 0}),
+		expect: [4]float32{120, 32, -27, 0},
+	},
+	{
+		what: "div",
+		assign: wasm.DivVec4F32(
+			wasm.ConstVec4F32{12, 16, 9, 25},
+			wasm.ConstVec4F32{3, 2, -3, 1}),
+		expect: [4]float32{4, 8, -3, 25},
+	},
+	{
+		what: "min",
+		assign: wasm.MinVec4F32(
+			wasm.ConstVec4F32{12, 16, 9, 25},
+			wasm.ConstVec4F32{3, 2, -3, 1}),
+		expect: [4]float32{3, 2, -3, 1},
+	},
+	{
+		what: "max",
+		assign: wasm.MaxVec4F32(
+			wasm.ConstVec4F32{12, 16, 9, 25},
+			wasm.ConstVec4F32{3, 2, -3, 1}),
+		expect: [4]float32{12, 16, 9, 25},
+	},
 }
 
 type buildContext struct {
@@ -412,6 +415,67 @@ var tcs = []struct {
 				vf := v.(float32)
 				if vf != tc.expect {
 					t.Errorf("%s: expected %f got %f", tc.what, tc.expect, vf)
+				}
+			}
+		},
+	},
+	{
+		what: "vecf32 ops",
+		build: func(b buildContext) *wasm.Module {
+			m := new(wasm.Module)
+			dst := [4]wasm.MutableF32{}
+			for i := range dst {
+				g := m.GlobalF32(0)
+				m.Export(fmt.Sprintf("o%d", i), g)
+				dst[i] = g
+			}
+			assign := func(v wasm.Vec4F32) []wasm.Instruction {
+				// can't export vec4f32 from wasmer :(
+				body := make([]wasm.Instruction, 4)
+				for i := range dst {
+					body[i] = wasm.AssignF32(
+						dst[i],
+						wasm.ExtractLaneVec4F32(v, i),
+					)
+				}
+				return body
+			}
+			for i, tc := range opvec4f32Tests {
+				f := m.Function()
+				f.Body(assign(tc.assign)...)
+				m.Export(fmt.Sprintf("f%d", i), f)
+			}
+			return m
+		},
+		test: func(ctx testContext) {
+			t := ctx.t
+			for i, tc := range opvec4f32Tests {
+				fail := func(err error) {
+					t.Errorf("%s: %s", tc.what, err)
+				}
+				f, err := ctx.inst.Exports.GetFunction(fmt.Sprintf("f%d", i))
+				if err != nil {
+					fail(err)
+				}
+				if _, err := f(); err != nil {
+					fail(err)
+				}
+				for i := 0; i < 4; i++ {
+					g, err := ctx.inst.Exports.GetGlobal(fmt.Sprintf("o%d", i))
+					if err != nil {
+						fail(err)
+					}
+					v, err := g.Get()
+					if err != nil {
+						fail(err)
+					}
+					vf, ok := v.(float32)
+					if !ok {
+						fail(fmt.Errorf("exported member was not float"))
+					}
+					if vf != tc.expect[i] {
+						fail(fmt.Errorf("[%d] expected %f got %f", i, tc.expect[i], vf))
+					}
 				}
 			}
 		},
