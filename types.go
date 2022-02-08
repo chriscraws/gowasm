@@ -8,6 +8,10 @@ import (
 	"strings"
 )
 
+type global interface {
+	incGlobalIndex()
+}
+
 type symbol interface {
 	String() string
 	write(out io.Writer) error
@@ -75,11 +79,16 @@ func (rt reftype) String() string {
 type valuetype struct {
 	numtype numtype
 	reftype reftype
+	vectype bool
 }
 
 func (vt valuetype) encode(out io.Writer) error {
+	if vt.vectype {
+		out.Write([]byte{0x7B})
+		return nil
+	}
 	if vt.numtype == 0 && vt.reftype == 0 {
-		return fmt.Errorf("%d is invalid valuetype", vt)
+		return fmt.Errorf("%v is invalid valuetype", vt)
 	}
 	if vt.numtype == 0 {
 		return vt.reftype.encode(out)
@@ -89,7 +98,7 @@ func (vt valuetype) encode(out io.Writer) error {
 
 func (vt valuetype) String() string {
 	if vt.numtype == 0 && vt.reftype == 0 {
-		panic(fmt.Errorf("%d is invalid valuetype", vt))
+		panic("invalid valuetype")
 	}
 	if vt.numtype == 0 {
 		return vt.reftype.String()

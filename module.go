@@ -3,6 +3,7 @@ package wasm
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"sort"
 	"strings"
 )
@@ -23,7 +24,7 @@ type Module struct {
 	exports [][]byte
 
 	// globals
-	globals []*varF32
+	globals []global
 
 	// imports
 	imports map[string]*varF32
@@ -42,6 +43,15 @@ type Exportable interface {
 // GlobalF32 creates a global, mutable F32 object.
 func (m *Module) GlobalF32(init float32) GlobalF32 {
 	g := new(varF32)
+	g.idx = uint32(len(m.globals))
+	g.init = init
+	m.globals = append(m.globals, g)
+	return g
+}
+
+// GlobalVec4F32 creates a global, mutable Vec4F32 object.
+func (m *Module) GlobalVec4F32(init [4]float32) GlobalVec4F32 {
+	g := new(vec4F32)
 	g.idx = uint32(len(m.globals))
 	g.init = init
 	m.globals = append(m.globals, g)
@@ -80,7 +90,7 @@ func (m *Module) ImportF32(symbol string) MutableF32 {
 		panic(fmt.Errorf("duplicate import %q", symbol))
 	}
 	for _, v := range m.globals {
-		v.idx++
+		v.incGlobalIndex()
 	}
 	out := new(varF32)
 	out.idx = uint32(len(m.imports))
@@ -271,24 +281,56 @@ func (m *Module) writeGlobalSection() error {
 	buf := new(bytes.Buffer)
 	writeu32(uint32(len(m.globals)), buf)
 	for _, v := range m.globals {
-		err := globaltype{
-			valuetype: valuetype{
-				numtype: f32,
-			},
-			mutable: true,
-		}.encode(buf)
+		var err error
+		switch v := v.(type) {
+		case *varF32:
+			err = m.writeF32Global(v, buf)
+		case *vec4F32:
+			err = m.writeVec4F32Global(v, buf)
+		default:
+			err = fmt.Errorf("%v is not a global-compatible type", v)
+		}
 		if err != nil {
 			return err
 		}
-		if err := ConstF32(v.init).write(buf); err != nil {
-			return err
-		}
-		buf.WriteByte(0x0B) // end expression
 	}
 
 	m.buf.WriteByte(0x06)
 	writeu32(uint32(buf.Len()), &m.buf)
 	m.buf.Write(buf.Bytes())
+	return nil
+}
+
+func (m *Module) writeF32Global(v *varF32, out io.Writer) error {
+	err := globaltype{
+		valuetype: valuetype{
+			numtype: f32,
+		},
+		mutable: true,
+	}.encode(out)
+	if err != nil {
+		return err
+	}
+	if err := ConstF32(v.init).write(out); err != nil {
+		return err
+	}
+	out.Write([]byte{0x0B}) // end expression
+	return nil
+}
+
+func (m *Module) writeVec4F32Global(v *vec4F32, out io.Writer) error {
+	err := globaltype{
+		valuetype: valuetype{
+			vectype: true,
+		},
+	}.encode(out)
+	if err != nil {
+		return err
+	}
+	if err := ConstVec4F32(v.init).write(out); err != nil {
+		return err
+	}
+	out.Write([]byte{0x0B}) // end expression
 	return nil
 }
 
