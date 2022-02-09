@@ -2,6 +2,12 @@ package wasm
 
 import "io"
 
+type I32 interface {
+	isI32()
+}
+
+func isI32() {}
+
 type localI32 uint32
 
 func (l localI32) isI32() {}

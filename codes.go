@@ -97,3 +97,9 @@ const (
 	pminf32x4V128
 	pmaxf32x4V128
 )
+
+// conversion ops
+
+const (
+	truncf32ui32 op = 0xA9
+)

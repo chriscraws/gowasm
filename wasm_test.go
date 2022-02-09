@@ -297,6 +297,52 @@ var forRangeTests = []struct {
 	},
 }
 
+var ifElseTests = []struct {
+	what   string
+	ifElse func(o wasm.MutableF32) wasm.IfF32
+	expect float32
+}{
+	{
+		what: "truthy condition",
+		ifElse: func(o wasm.MutableF32) wasm.IfF32 {
+			return wasm.IfF32{
+				Condition: wasm.ConstF32(1),
+				Then: []wasm.Instruction{
+					wasm.AssignF32(o, wasm.ConstF32(1)),
+				},
+			}
+		},
+		expect: 1,
+	},
+	{
+		what: "falsey condition",
+		ifElse: func(o wasm.MutableF32) wasm.IfF32 {
+			return wasm.IfF32{
+				Condition: wasm.ConstF32(0),
+				Then: []wasm.Instruction{
+					wasm.AssignF32(o, wasm.ConstF32(1)),
+				},
+				Else: []wasm.Instruction{
+					wasm.AssignF32(o, wasm.ConstF32(-1)),
+				},
+			}
+		},
+		expect: -1,
+	},
+	{
+		what: "only falsey condition",
+		ifElse: func(o wasm.MutableF32) wasm.IfF32 {
+			return wasm.IfF32{
+				Condition: wasm.ConstF32(0),
+				Else: []wasm.Instruction{
+					wasm.AssignF32(o, wasm.ConstF32(-1)),
+				},
+			}
+		},
+		expect: -1,
+	},
+}
+
 type buildContext struct {
 	t     *testing.T
 	imp   *wasmer.ImportObject
@@ -601,6 +647,43 @@ var tcs = []struct {
 			reset, _ := ctx.inst.Exports.GetFunction("reset")
 			res, _ := ctx.inst.Exports.GetGlobal("o")
 			for i, tc := range forRangeTests {
+				ctx.t.Run(tc.what, func(t *testing.T) {
+					tc := tc
+					reset()
+					f, _ := ctx.inst.Exports.GetFunction(fmt.Sprintf("f%d", i))
+					_, err := f()
+					if err != nil {
+						t.Error(err)
+					}
+					v, _ := res.Get()
+					vf := v.(float32)
+					if vf != tc.expect {
+						t.Errorf("expected %f, got %f", tc.expect, vf)
+					}
+				})
+			}
+		},
+	},
+	{
+		what: "if-else tests",
+		build: func(ctx buildContext) *wasm.Module {
+			m := new(wasm.Module)
+			o := m.GlobalF32(0)
+			m.Export("o", o)
+			reset := m.Function()
+			reset.Body(wasm.AssignF32(o, wasm.ConstF32(0)))
+			m.Export("reset", reset)
+			for i, tc := range ifElseTests {
+				f := m.Function()
+				f.Body(tc.ifElse(o))
+				m.Export(fmt.Sprintf("f%d", i), f)
+			}
+			return m
+		},
+		test: func(ctx testContext) {
+			reset, _ := ctx.inst.Exports.GetFunction("reset")
+			res, _ := ctx.inst.Exports.GetGlobal("o")
+			for i, tc := range ifElseTests {
 				ctx.t.Run(tc.what, func(t *testing.T) {
 					tc := tc
 					reset()

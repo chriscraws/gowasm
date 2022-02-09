@@ -51,6 +51,39 @@ func (b branchIf) write(c instCtx) error {
 	return nil
 }
 
+// IfF32 conditionally runs the instructions
+// in Then, if Condition is non-zero. Otherwise,
+// it will run the instructions in Else.
+type IfF32 struct {
+	Condition F32
+	Then      []Instruction
+	Else      []Instruction
+}
+
+func (i IfF32) write(c instCtx) error {
+	if i.Condition == nil {
+		return nil
+	}
+	out := ops{
+		// load condition
+		i.Condition,
+		truncf32ui32,
+		// if s
+		ifElseCI,
+	}
+	out = append(out, i.Then...)
+	out = append(out, elseCI)
+	out = append(out, i.Else...)
+	out = append(out, endCI)
+	return out.write(c)
+}
+
+// ForRangeF32 runs the instructions Do for every index value
+// in the range from Begin to End, incrementing by Inc.
+// If Inc is not set or if it is zero, it will be set to 1. Begin and
+// End default to 0. Inc may be negative, in which case the end
+// condition is index <= end. Otherwise the end condition is
+// index >= end.
 type ForRangeF32 struct {
 	Begin F32
 	End   F32
@@ -61,6 +94,12 @@ type ForRangeF32 struct {
 func (fr ForRangeF32) write(c instCtx) error {
 	if fr.Inc == nil {
 		fr.Inc = ConstF32(1)
+	}
+	if fr.Begin == nil {
+		fr.Begin = ConstF32(0)
+	}
+	if fr.End == nil {
+		fr.End = ConstF32(0)
 	}
 	// create locals
 	idx := c.fn.LocalF32()
