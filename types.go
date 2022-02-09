@@ -10,6 +10,12 @@ import (
 
 type global interface {
 	incGlobalIndex()
+	setGlobalIndex(i uint32)
+	globalIndex() uint32
+}
+
+type importable interface {
+	writeImportDesc(out io.Writer) error
 }
 
 type symbol interface {

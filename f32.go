@@ -32,7 +32,15 @@ func (v *varF32) incGlobalIndex() {
 	v.idx++
 }
 
-func (v *varF32) write(out io.Writer) error {
+func (v *varF32) setGlobalIndex(i uint32) {
+	v.idx = i
+}
+
+func (v *varF32) globalIndex() uint32 {
+	return v.idx
+}
+
+func (v *varF32) write(out instCtx) error {
 	out.Write([]byte{0x23}) // global.get x
 	writeu32(v.idx, out)
 	return nil
@@ -46,11 +54,21 @@ func (v *varF32) set(out io.Writer) error {
 
 func (v *varF32) isExportable() {}
 
+func (v *varF32) writeImportDesc(out io.Writer) error {
+	out.Write([]byte{0x03})
+	return globaltype{
+		mutable: true,
+		valuetype: valuetype{
+			numtype: f32,
+		},
+	}.encode(out)
+}
+
 type localF32 uint32
 
 func (l localF32) isF32() {}
 
-func (l localF32) write(out io.Writer) error {
+func (l localF32) write(out instCtx) error {
 	out.Write([]byte{0x20}) // local.get x
 	writeu32(uint32(l), out)
 	return nil

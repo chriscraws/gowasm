@@ -196,6 +196,107 @@ var opvec4f32Tests = []struct {
 	},
 }
 
+var forRangeTests = []struct {
+	what     string
+	forRange func(o wasm.MutableF32) wasm.ForRangeF32
+	expect   float32
+}{
+	{
+		what: "increment to 10",
+		forRange: func(o wasm.MutableF32) wasm.ForRangeF32 {
+			return wasm.ForRangeF32{
+				Begin: wasm.ConstF32(0),
+				End:   wasm.ConstF32(10),
+				Do: func(i wasm.F32) []wasm.Instruction {
+					return []wasm.Instruction{
+						wasm.AssignF32(
+							o,
+							wasm.AddF32(o, wasm.ConstF32(1)),
+						),
+					}
+				},
+			}
+		},
+		expect: 10,
+	},
+	{
+		what: "decrement to -10",
+		forRange: func(o wasm.MutableF32) wasm.ForRangeF32 {
+			return wasm.ForRangeF32{
+				Begin: wasm.ConstF32(10),
+				End:   wasm.ConstF32(0),
+				Inc:   wasm.ConstF32(-1),
+				Do: func(i wasm.F32) []wasm.Instruction {
+					return []wasm.Instruction{
+						wasm.AssignF32(
+							o,
+							wasm.AddF32(o, wasm.ConstF32(1)),
+						),
+					}
+				},
+			}
+		},
+		expect: 10,
+	},
+	{
+		what: "do nothing for invalid range",
+		forRange: func(o wasm.MutableF32) wasm.ForRangeF32 {
+			return wasm.ForRangeF32{
+				Begin: wasm.ConstF32(10),
+				End:   wasm.ConstF32(11),
+				Inc:   wasm.ConstF32(-1),
+				Do: func(i wasm.F32) []wasm.Instruction {
+					return []wasm.Instruction{
+						wasm.AssignF32(
+							o,
+							wasm.AddF32(o, wasm.ConstF32(1)),
+						),
+					}
+				},
+			}
+		},
+		expect: 0,
+	},
+	{
+		what: "do nothing for invalid range up",
+		forRange: func(o wasm.MutableF32) wasm.ForRangeF32 {
+			return wasm.ForRangeF32{
+				Begin: wasm.ConstF32(10),
+				End:   wasm.ConstF32(9),
+				Inc:   wasm.ConstF32(1),
+				Do: func(i wasm.F32) []wasm.Instruction {
+					return []wasm.Instruction{
+						wasm.AssignF32(
+							o,
+							wasm.AddF32(o, wasm.ConstF32(1)),
+						),
+					}
+				},
+			}
+		},
+		expect: 0,
+	},
+	{
+		what: "nonstandard increment",
+		forRange: func(o wasm.MutableF32) wasm.ForRangeF32 {
+			return wasm.ForRangeF32{
+				Begin: wasm.ConstF32(0),
+				End:   wasm.ConstF32(15),
+				Inc:   wasm.ConstF32(5),
+				Do: func(i wasm.F32) []wasm.Instruction {
+					return []wasm.Instruction{
+						wasm.AssignF32(
+							o,
+							wasm.AddF32(o, i),
+						),
+					}
+				},
+			}
+		},
+		expect: 15,
+	},
+}
+
 type buildContext struct {
 	t     *testing.T
 	imp   *wasmer.ImportObject
@@ -298,7 +399,7 @@ var tcs = []struct {
 		what: "imported f32",
 		build: func(b buildContext) *wasm.Module {
 			m := new(wasm.Module)
-			imp := m.ImportF32("root.x")
+			imp := m.ImportF32("root", "x")
 			f := m.Function()
 			f.Body(wasm.AssignF32(imp, wasm.ConstF32(123)))
 			m.Export("main", f)
@@ -477,6 +578,43 @@ var tcs = []struct {
 						fail(fmt.Errorf("[%d] expected %f got %f", i, tc.expect[i], vf))
 					}
 				}
+			}
+		},
+	},
+	{
+		what: "for-range tests",
+		build: func(ctx buildContext) *wasm.Module {
+			m := new(wasm.Module)
+			o := m.GlobalF32(0)
+			m.Export("o", o)
+			reset := m.Function()
+			reset.Body(wasm.AssignF32(o, wasm.ConstF32(0)))
+			m.Export("reset", reset)
+			for i, tc := range forRangeTests {
+				f := m.Function()
+				f.Body(tc.forRange(o))
+				m.Export(fmt.Sprintf("f%d", i), f)
+			}
+			return m
+		},
+		test: func(ctx testContext) {
+			reset, _ := ctx.inst.Exports.GetFunction("reset")
+			res, _ := ctx.inst.Exports.GetGlobal("o")
+			for i, tc := range forRangeTests {
+				ctx.t.Run(tc.what, func(t *testing.T) {
+					tc := tc
+					reset()
+					f, _ := ctx.inst.Exports.GetFunction(fmt.Sprintf("f%d", i))
+					_, err := f()
+					if err != nil {
+						t.Error(err)
+					}
+					v, _ := res.Get()
+					vf := v.(float32)
+					if vf != tc.expect {
+						t.Errorf("expected %f, got %f", tc.expect, vf)
+					}
+				})
 			}
 		},
 	},

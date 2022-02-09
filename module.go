@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"sort"
-	"strings"
 )
 
 // Module is a repesentation of a WASM module.
@@ -27,7 +26,9 @@ type Module struct {
 	globals []global
 
 	// imports
-	imports map[string]*varF32
+	imports map[[2]string]importable
+
+	doesUseMemory bool
 }
 
 // An Exportable type can be exported from the module.
@@ -75,26 +76,42 @@ func (m *Module) Export(name string, v Exportable) {
 	m.exportNames[name] = v
 }
 
+func (m *Module) addImport(mod, name string, v importable) {
+	if m.imports == nil {
+		m.imports = make(map[[2]string]importable)
+	}
+	key := [2]string{mod, name}
+	if _, ok := m.imports[key]; ok {
+		panic(fmt.Errorf("duplicate import %q", key))
+	}
+	for _, g := range m.globals {
+		g.incGlobalIndex()
+	}
+	if g, ok := v.(global); ok {
+		g.setGlobalIndex(uint32(len(m.imports)))
+	}
+	m.imports[key] = v
+}
+
 // ImportF32 imports a global F32 value.
 // If symbol has already been imported, ImportF32 panics.
 // symbol must be in the format "module.name"
-func (m *Module) ImportF32(symbol string) MutableF32 {
-	sp := strings.Split(symbol, ".")
-	if len(sp) != 2 {
-		panic(fmt.Errorf("malformed symbol %q", symbol))
-	}
-	if m.imports == nil {
-		m.imports = make(map[string]*varF32)
-	}
-	if _, ok := m.imports[symbol]; ok {
-		panic(fmt.Errorf("duplicate import %q", symbol))
-	}
-	for _, v := range m.globals {
-		v.incGlobalIndex()
-	}
+func (m *Module) ImportF32(mod, name string) MutableF32 {
 	out := new(varF32)
-	out.idx = uint32(len(m.imports))
-	m.imports[symbol] = out
+	m.addImport(mod, name, out)
+	return out
+}
+
+// ImportSliceF32 imports a slice of float32 values located
+// in memory. This requires memory to be provided to the wasm
+// module.
+// SliceF32 is an i64 value that is interpreted as two u32 offsets,
+// defining the inclusive lower bound and exclusive upper bound
+// (exlusive) of the slice memory offsets.
+func (m *Module) ImportSliceF32(name string) SliceF32 {
+	out := new(sliceF32)
+	m.addImport("_sf32", name, out)
+	m.doesUseMemory = true
 	return out
 }
 
@@ -229,8 +246,12 @@ func (m *Module) writeImportSection() error {
 	writeu32(uint32(len(m.imports)), buf)
 	imports := make([][2]string, len(m.imports))
 	for k, m := range m.imports {
-		sp := strings.Split(k, ".")
-		imports[m.idx] = [2]string{sp[0], sp[1]}
+		imports[m.(global).globalIndex()] = k
+	}
+	if m.doesUseMemory {
+		key := [2]string{"wasm", "memory"}
+		m.imports[key] = memImport{}
+		imports = append(imports, key)
 	}
 	for _, imp := range imports {
 		// module
@@ -239,14 +260,10 @@ func (m *Module) writeImportSection() error {
 		// name
 		writeu32(uint32(len(imp[1])), buf)
 		buf.WriteString(imp[1])
-		// importdesc
-		buf.WriteByte(0x03) // globaltype
-		globaltype{
-			mutable: true,
-			valuetype: valuetype{
-				numtype: f32,
-			},
-		}.encode(buf)
+		g := m.imports[imp]
+		if err := g.writeImportDesc(buf); err != nil {
+			return fmt.Errorf("failed to write import %s.%s: %s", imp[0], imp[1], err)
+		}
 	}
 	m.buf.WriteByte(2)
 	writeu32(uint32(buf.Len()), &m.buf)
@@ -311,7 +328,7 @@ func (m *Module) writeF32Global(v *varF32, out io.Writer) error {
 	if err != nil {
 		return err
 	}
-	if err := ConstF32(v.init).write(out); err != nil {
+	if err := ConstF32(v.init).write(instCtx{Writer: out}); err != nil {
 		return err
 	}
 	out.Write([]byte{0x0B}) // end expression
@@ -327,7 +344,7 @@ func (m *Module) writeVec4F32Global(v *vec4F32, out io.Writer) error {
 	if err != nil {
 		return err
 	}
-	if err := ConstVec4F32(v.init).write(out); err != nil {
+	if err := ConstVec4F32(v.init).write(instCtx{Writer: out}); err != nil {
 		return err
 	}
 	out.Write([]byte{0x0B}) // end expression

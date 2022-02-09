@@ -5,22 +5,27 @@ import (
 	"io"
 )
 
+type instCtx struct {
+	io.Writer
+	fn Function
+}
+
 type Instruction interface {
-	write(out io.Writer) error
+	write(ctx instCtx) error
 }
 
 type op byte
 
-func (o op) write(out io.Writer) error {
+func (o op) write(out instCtx) error {
 	out.Write([]byte{byte(o)})
 	return nil
 }
 
 type ops []Instruction
 
-func (o ops) write(out io.Writer) error {
+func (o ops) write(ctx instCtx) error {
 	for _, v := range o {
-		if err := v.write(out); err != nil {
+		if err := v.write(ctx); err != nil {
 			return err
 		}
 	}
@@ -29,7 +34,7 @@ func (o ops) write(out io.Writer) error {
 
 type vecOp uint32
 
-func (o vecOp) write(out io.Writer) error {
+func (o vecOp) write(out instCtx) error {
 	out.Write([]byte{0xFD})
 	writeu32(uint32(o), out)
 	return nil
@@ -45,7 +50,7 @@ type assignF32 struct {
 	v   F32
 }
 
-func (a assignF32) write(out io.Writer) error {
+func (a assignF32) write(out instCtx) error {
 	if err := a.v.write(out); err != nil {
 		return err
 	}
@@ -60,7 +65,7 @@ type ConstF32 float32
 
 func (c ConstF32) isF32() {}
 
-func (c ConstF32) write(out io.Writer) error {
+func (c ConstF32) write(out instCtx) error {
 	out.Write([]byte{0x43})
 	binary.Write(out, binary.LittleEndian, c)
 	return nil
@@ -70,7 +75,7 @@ type opsF32 ops
 
 func (o opsF32) isF32() {}
 
-func (o opsF32) write(out io.Writer) error {
+func (o opsF32) write(out instCtx) error {
 	return ops(o).write(out)
 }
 
@@ -78,7 +83,7 @@ type opsVec4F32 ops
 
 func (o opsVec4F32) isVec4F32() {}
 
-func (o opsVec4F32) write(out io.Writer) error {
+func (o opsVec4F32) write(out instCtx) error {
 	return ops(o).write(out)
 }
 

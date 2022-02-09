@@ -2,7 +2,6 @@ package wasm
 
 import (
 	"encoding/binary"
-	"io"
 )
 
 // Vec4F32 represents a float32 vector of 4
@@ -23,7 +22,7 @@ type vec4F32 struct {
 	align  uint32
 }
 
-func (v *vec4F32) write(out io.Writer) error {
+func (v *vec4F32) write(out instCtx) error {
 	out.Write([]byte{0x23})
 	writeu32(v.idx, out)
 	return nil
@@ -35,11 +34,19 @@ func (v *vec4F32) incGlobalIndex() {
 	v.idx++
 }
 
+func (v *vec4F32) setGlobalIndex(i uint32) {
+	v.idx = i
+}
+
+func (v *vec4F32) globalIndex() uint32 {
+	return v.idx
+}
+
 type ConstVec4F32 [4]float32
 
 func (c ConstVec4F32) isVec4F32() {}
 
-func (c ConstVec4F32) write(out io.Writer) error {
+func (c ConstVec4F32) write(out instCtx) error {
 	constV128.write(out)
 	binary.Write(out, binary.LittleEndian, c[:])
 	return nil
@@ -60,7 +67,7 @@ type extractLaneVec4F32 struct {
 
 func (e extractLaneVec4F32) isF32() {}
 
-func (e extractLaneVec4F32) write(out io.Writer) error {
+func (e extractLaneVec4F32) write(out instCtx) error {
 	if err := e.x.write(out); err != nil {
 		return err
 	}
