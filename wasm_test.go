@@ -701,6 +701,39 @@ var tcs = []struct {
 			}
 		},
 	},
+	{
+		what: "imported function",
+		build: func(ctx buildContext) *wasm.Module {
+			m := new(wasm.Module)
+			f := m.ImportFunction("env", "func")
+			f2 := m.Function()
+			f2.Body(wasm.Call(f))
+			m.Export("main", f2)
+
+			val := new(int)
+			*ctx.data = val
+			ctx.imp.Register("env", map[string]wasmer.IntoExtern{
+				"func": wasmer.NewFunction(
+					ctx.store,
+					wasmer.NewFunctionType(nil, nil),
+					func([]wasmer.Value) ([]wasmer.Value, error) {
+						*val = 15
+						return nil, nil
+					},
+				),
+			})
+
+			return m
+		},
+		test: func(ctx testContext) {
+			fn2, _ := ctx.inst.Exports.GetFunction("main")
+			fn2()
+			res := (*ctx.data).(*int)
+			if *res != 15 {
+				ctx.t.Errorf("expected: %d, got %d", 15, *res)
+			}
+		},
+	},
 }
 
 func TestWasm(t *testing.T) {

@@ -15,7 +15,7 @@ type global interface {
 }
 
 type importable interface {
-	writeImportDesc(out io.Writer) error
+	writeImportDesc(m *Module, out io.Writer) error
 }
 
 type symbol interface {

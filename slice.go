@@ -21,7 +21,7 @@ func (s *sliceF32) globalIndex() uint32 {
 	return s.idx
 }
 
-func (s *sliceF32) writeImportDesc(out io.Writer) error {
+func (s *sliceF32) writeImportDesc(m *Module, out io.Writer) error {
 	out.Write([]byte{0x03})
 	return globaltype{
 		mutable: true,

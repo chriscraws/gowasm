@@ -54,7 +54,7 @@ func (v *varF32) set(out io.Writer) error {
 
 func (v *varF32) isExportable() {}
 
-func (v *varF32) writeImportDesc(out io.Writer) error {
+func (v *varF32) writeImportDesc(m *Module, out io.Writer) error {
 	out.Write([]byte{0x03})
 	return globaltype{
 		mutable: true,

@@ -30,6 +30,8 @@ const (
 const elseCI op = 0x05
 const endCI op = 0x0B
 
+const callCI op = 0x10
+
 const (
 	dropOp op = 0x1A + iota
 	selectOp
@@ -50,6 +52,15 @@ func (b branchIf) write(c instCtx) error {
 	writeu32(uint32(b), c)
 	return nil
 }
+
+// Call calls the given Callable, which must be of type
+// Function or ImportedFunction.
+func Call(c Callable) Instruction {
+	return ops{callCI, u32(c.index())}
+}
+
+// Return unconditionally returns from the current function.
+var Return op = returnCI
 
 // IfF32 conditionally runs the instructions
 // in Then, if Condition is non-zero. Otherwise,

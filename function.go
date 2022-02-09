@@ -5,9 +5,15 @@ import (
 	"io"
 )
 
+type Callable interface {
+	isFunction()
+	index() uint32
+}
+
 // Function represents a callable wasm function.
 // Functions can be exported and called externally.
 type Function interface {
+	Callable
 	Exportable
 
 	// Body sets the body of the Function to inst.
@@ -22,12 +28,21 @@ type Function interface {
 	localI32() localI32
 }
 
+// ImportedFunction is created by a call to Module.ImportedFunction.
+// It represents a host-provided function.
+type ImportedFunction interface {
+	Callable
+	importable
+}
+
 type function struct {
 	idx          uint32
 	instructions []Instruction
 	localF32Cnt  uint32
 	localI32Cnt  uint32
 }
+
+func (f *function) isFunction() {}
 
 func (f *function) isExportable() {}
 
@@ -83,4 +98,14 @@ func (f *function) encode(out io.Writer) error {
 	out.Write(buf.Bytes())
 
 	return nil
+}
+
+func (f *function) writeImportDesc(m *Module, out io.Writer) error {
+	out.Write([]byte{0x0})
+	writeu32(f.idx, out)
+	return nil
+}
+
+func (f *function) index() uint32 {
+	return f.idx
 }

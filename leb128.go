@@ -17,3 +17,10 @@ func writeu32(v uint32, out io.Writer) {
 		}
 	}
 }
+
+type u32 uint32
+
+func (u u32) write(c instCtx) error {
+	writeu32(uint32(u), c)
+	return nil
+}

@@ -26,7 +26,10 @@ type Module struct {
 	globals []global
 
 	// imports
-	imports map[[2]string]importable
+	imports           map[[2]string]importable
+	importIndex       map[[2]string]uint32
+	globalImportCnt   uint32
+	functionImportCnt uint32
 
 	doesUseMemory bool
 }
@@ -79,18 +82,30 @@ func (m *Module) Export(name string, v Exportable) {
 func (m *Module) addImport(mod, name string, v importable) {
 	if m.imports == nil {
 		m.imports = make(map[[2]string]importable)
+		m.importIndex = make(map[[2]string]uint32)
 	}
 	key := [2]string{mod, name}
 	if _, ok := m.imports[key]; ok {
 		panic(fmt.Errorf("duplicate import %q", key))
 	}
-	for _, g := range m.globals {
-		g.incGlobalIndex()
-	}
-	if g, ok := v.(global); ok {
-		g.setGlobalIndex(uint32(len(m.imports)))
+	switch v := v.(type) {
+	case global:
+		for _, g := range m.globals {
+			g.incGlobalIndex()
+		}
+		v.setGlobalIndex(m.globalImportCnt)
+		m.globalImportCnt++
+	case *function:
+		for _, f := range m.functions {
+			f.idx++
+		}
+		v.idx = m.functionImportCnt
+		m.functionImportCnt++
+	default:
+		panic(fmt.Errorf("%v is not a valid import type", v))
 	}
 	m.imports[key] = v
+	m.importIndex[key] = uint32(len(m.importIndex))
 }
 
 // ImportF32 imports a global F32 value.
@@ -112,6 +127,12 @@ func (m *Module) ImportSliceF32(name string) SliceF32 {
 	out := new(sliceF32)
 	m.addImport("_sf32", name, out)
 	m.doesUseMemory = true
+	return out
+}
+
+func (m *Module) ImportFunction(mod, name string) ImportedFunction {
+	out := new(function)
+	m.addImport(mod, name, out)
 	return out
 }
 
@@ -245,8 +266,8 @@ func (m *Module) writeImportSection() error {
 	// vec(import)
 	writeu32(uint32(len(m.imports)), buf)
 	imports := make([][2]string, len(m.imports))
-	for k, m := range m.imports {
-		imports[m.(global).globalIndex()] = k
+	for k := range m.imports {
+		imports[m.importIndex[k]] = k
 	}
 	if m.doesUseMemory {
 		key := [2]string{"wasm", "memory"}
@@ -261,7 +282,7 @@ func (m *Module) writeImportSection() error {
 		writeu32(uint32(len(imp[1])), buf)
 		buf.WriteString(imp[1])
 		g := m.imports[imp]
-		if err := g.writeImportDesc(buf); err != nil {
+		if err := g.writeImportDesc(m, buf); err != nil {
 			return fmt.Errorf("failed to write import %s.%s: %s", imp[0], imp[1], err)
 		}
 	}
