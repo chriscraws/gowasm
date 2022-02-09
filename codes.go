@@ -1,5 +1,19 @@
 package wasm
 
+// global ops
+const (
+	globalGet op = 0x23 + iota
+	globalSet
+)
+
+// const ops
+const (
+	constI32 op = 0x41 + iota
+	constI64
+	constF32
+	constF64
+)
+
 // f32 boolean operations
 const (
 	eqf32 op = 0x5B + iota
@@ -98,8 +112,33 @@ const (
 	pmaxf32x4V128
 )
 
+// i32 boolean ops
+
+const (
+	eqzI32 op = 0x45 + iota
+	eqI32
+	neI32
+	ltSI32
+	ltUI32
+	gtSI32
+	gtUI32
+	leSI32
+	leUI32
+	geSI32
+	geUI32
+)
+
+// i64 ops
+
+const (
+	shiftRightUI64 op = 0x87 + iota
+)
+
 // conversion ops
 
 const (
-	truncf32ui32 op = 0xA9
+	wrapi64I32     op = 0xA7
+	truncf32ui32   op = 0xA9
+	converti32uF32 op = 0xB3
+	converti64uF32 op = 0xB4
 )

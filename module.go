@@ -121,8 +121,11 @@ func (m *Module) ImportF32(mod, name string) MutableF32 {
 // in memory. This requires memory to be provided to the wasm
 // module.
 // SliceF32 is an i64 value that is interpreted as two u32 offsets,
-// defining the inclusive lower bound and exclusive upper bound
-// (exlusive) of the slice memory offsets.
+// defining the length of the slice (number of float32 elements),
+// and the byte-offset in the memory section.
+//
+// The lower-order bits are the offset while the higher order
+// bits are the length.
 func (m *Module) ImportSliceF32(name string) SliceF32 {
 	out := new(sliceF32)
 	m.addImport("_sf32", name, out)
@@ -263,8 +266,6 @@ func (m *Module) writeImportSection() error {
 		return nil
 	}
 	buf := new(bytes.Buffer)
-	// vec(import)
-	writeu32(uint32(len(m.imports)), buf)
 	imports := make([][2]string, len(m.imports))
 	for k := range m.imports {
 		imports[m.importIndex[k]] = k
@@ -274,6 +275,8 @@ func (m *Module) writeImportSection() error {
 		m.imports[key] = memImport{}
 		imports = append(imports, key)
 	}
+	// vec(import)
+	writeu32(uint32(len(imports)), buf)
 	for _, imp := range imports {
 		// module
 		writeu32(uint32(len(imp[0])), buf)

@@ -66,7 +66,7 @@ type ConstF32 float32
 func (c ConstF32) isF32() {}
 
 func (c ConstF32) write(out instCtx) error {
-	out.Write([]byte{0x43})
+	constF32.write(out)
 	binary.Write(out, binary.LittleEndian, c)
 	return nil
 }

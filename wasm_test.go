@@ -1,6 +1,8 @@
 package wasm_test
 
 import (
+	"bytes"
+	"encoding/binary"
 	"fmt"
 	"testing"
 
@@ -731,6 +733,146 @@ var tcs = []struct {
 			res := (*ctx.data).(*int)
 			if *res != 15 {
 				ctx.t.Errorf("expected: %d, got %d", 15, *res)
+			}
+		},
+	},
+	{
+		what: "slice length",
+		build: func(ctx buildContext) *wasm.Module {
+			m := new(wasm.Module)
+			o := m.GlobalF32(0)
+			m.Export("o", o)
+			vec := m.ImportSliceF32("wowee")
+			f := m.Function()
+			f.Body(wasm.AssignF32(o, vec.LengthF32()))
+			m.Export("main", f)
+			limit, _ := wasmer.NewLimits(1, wasmer.LimitMaxUnbound())
+			mem := wasmer.NewMemory(
+				ctx.store,
+				wasmer.NewMemoryType(limit),
+			)
+			ctx.imp.Register("wasm", map[string]wasmer.IntoExtern{
+				"memory": mem,
+			})
+			ptr := int64(10 << 32) // offset is zero, length is 10 floats
+			vecPtr := wasmer.NewGlobal(
+				ctx.store,
+				wasmer.NewGlobalType(
+					wasmer.NewValueType(wasmer.I64), wasmer.IMMUTABLE),
+				wasmer.NewI64(ptr),
+			)
+			ctx.imp.Register("_sf32", map[string]wasmer.IntoExtern{
+				"wowee": vecPtr,
+			})
+			return m
+		},
+		test: func(ctx testContext) {
+			fn, _ := ctx.inst.Exports.GetFunction("main")
+			fn()
+			res, _ := ctx.inst.Exports.GetGlobal("o")
+			v, _ := res.Get()
+			vf := v.(float32)
+			if vf != 10.0 {
+				ctx.t.Errorf("expected %f, got %f", 10.0, vf)
+			}
+		},
+	},
+	{
+		what: "slice index",
+		build: func(ctx buildContext) *wasm.Module {
+			m := new(wasm.Module)
+			o := m.GlobalF32(0)
+			m.Export("o", o)
+			vec := m.ImportSliceF32("wowee")
+			f := m.Function()
+			f.Body(wasm.AssignF32(o, vec.IndexF32(wasm.ConstF32(4))))
+			m.Export("main", f)
+			limit, _ := wasmer.NewLimits(1, wasmer.LimitMaxUnbound())
+			mem := wasmer.NewMemory(
+				ctx.store,
+				wasmer.NewMemoryType(limit),
+			)
+			arr := [10]float32{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}
+			dst := bytes.NewBuffer(mem.Data()[:0])
+			binary.Write(dst, binary.LittleEndian, arr[:])
+			ctx.imp.Register("wasm", map[string]wasmer.IntoExtern{
+				"memory": mem,
+			})
+			ptr := int64(10 << 32) // offset is zero, length is 10 floats
+			vecPtr := wasmer.NewGlobal(
+				ctx.store,
+				wasmer.NewGlobalType(
+					wasmer.NewValueType(wasmer.I64), wasmer.IMMUTABLE),
+				wasmer.NewI64(ptr),
+			)
+			ctx.imp.Register("_sf32", map[string]wasmer.IntoExtern{
+				"wowee": vecPtr,
+			})
+			return m
+		},
+		test: func(ctx testContext) {
+			fn, _ := ctx.inst.Exports.GetFunction("main")
+			fn()
+			res, _ := ctx.inst.Exports.GetGlobal("o")
+			v, _ := res.Get()
+			vf := v.(float32)
+			if vf != 4 {
+				ctx.t.Errorf("expected %f, got %f", 4.0, vf)
+			}
+		},
+	},
+	{
+		what: "slice range",
+		build: func(ctx buildContext) *wasm.Module {
+			m := new(wasm.Module)
+			o := m.GlobalF32(0)
+			m.Export("o", o)
+			vec := m.ImportSliceF32("wowee")
+			f := m.Function()
+			f.Body(
+				wasm.SliceF32RangeF32{
+					Slice: vec,
+					Begin: wasm.ConstF32(3),
+					End:   wasm.ConstF32(6),
+					Do: func(v wasm.F32) []wasm.Instruction {
+						return []wasm.Instruction{
+							wasm.AssignF32(o, wasm.AddF32(o, v)),
+						}
+					},
+				},
+			)
+			m.Export("main", f)
+			limit, _ := wasmer.NewLimits(1, wasmer.LimitMaxUnbound())
+			mem := wasmer.NewMemory(
+				ctx.store,
+				wasmer.NewMemoryType(limit),
+			)
+			arr := [10]float32{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}
+			dst := bytes.NewBuffer(mem.Data()[:0])
+			binary.Write(dst, binary.LittleEndian, arr[:])
+			ctx.imp.Register("wasm", map[string]wasmer.IntoExtern{
+				"memory": mem,
+			})
+			ptr := int64(10 << 32) // offset is zero, length is 10 floats
+			vecPtr := wasmer.NewGlobal(
+				ctx.store,
+				wasmer.NewGlobalType(
+					wasmer.NewValueType(wasmer.I64), wasmer.IMMUTABLE),
+				wasmer.NewI64(ptr),
+			)
+			ctx.imp.Register("_sf32", map[string]wasmer.IntoExtern{
+				"wowee": vecPtr,
+			})
+			return m
+		},
+		test: func(ctx testContext) {
+			fn, _ := ctx.inst.Exports.GetFunction("main")
+			fn()
+			res, _ := ctx.inst.Exports.GetGlobal("o")
+			v, _ := res.Get()
+			vf := v.(float32)
+			if vf != 12 {
+				ctx.t.Errorf("expected %f, got %f", 12.0, vf)
 			}
 		},
 	},
