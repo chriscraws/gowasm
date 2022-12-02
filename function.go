@@ -5,6 +5,7 @@ import (
 	"io"
 )
 
+// A Callable can be called as an instruction with Call.
 type Callable interface {
 	isFunction()
 	index() uint32
@@ -40,6 +41,7 @@ type function struct {
 	instructions []Instruction
 	localF32Cnt  uint32
 	localI32Cnt  uint32
+	ft           functype
 }
 
 func (f *function) isFunction() {}
@@ -47,7 +49,7 @@ func (f *function) isFunction() {}
 func (f *function) isExportable() {}
 
 func (f *function) functype() functype {
-	return functype{}
+	return f.ft
 }
 
 func (f *function) Body(inst ...Instruction) {

@@ -133,6 +133,8 @@ func (m *Module) ImportSliceF32(name string) SliceF32 {
 	return out
 }
 
+// ImportFunction returns a handle to a function imported from
+// the runtime.
 func (m *Module) ImportFunction(mod, name string) ImportedFunction {
 	out := new(function)
 	m.addImport(mod, name, out)

@@ -76,6 +76,7 @@ func (e extractLaneVec4F32) write(out instCtx) error {
 	return nil
 }
 
+// Return the index i as an F32.
 func ExtractLaneVec4F32(x Vec4F32, i int) F32 {
 	return extractLaneVec4F32{x: x, i: i}
 }

@@ -54,9 +54,10 @@ func (b branchIf) write(c instCtx) error {
 }
 
 // Call calls the given Callable, which must be of type
-// Function or ImportedFunction.
-func Call(c Callable) Instruction {
-	return ops{callCI, u32(c.index())}
+// Function or ImportedFunction. args must result in the correct
+// number of arguments being available on the stack.
+func Call(c Callable, args ...Instruction) Instruction {
+	return ops(append(args, callCI, u32(c.index())))
 }
 
 // Return unconditionally returns from the current function.
